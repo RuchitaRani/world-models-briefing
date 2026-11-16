@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dreamer V1, step by step</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: one reading column, figures scroll sideways on phones */
+  --bg:#F5F6F8; --surface:#FFFFFF; --ink:#1B2230; --muted:#5B6475; --line:#D5DAE3;
+  --world:#1F7A5C; --world-bg:#E2F2EB;
+  --model:#4B4FC4; --model-bg:#E9EAFB;
+  --act:#A85A14; --act-bg:#FBEEDD;
+  --tmp:#B23A5E; --tmp-bg:#FAE6EC;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12151C; --surface:#1A1F29; --ink:#E7EAF0; --muted:#9AA3B5; --line:#323A4A;
+    --world:#5CC49C; --world-bg:#15302A; --model:#A2A5F4; --model-bg:#24264A;
+    --act:#E9A25B; --act-bg:#3A2A17; --tmp:#EE86A5; --tmp-bg:#3B1D28; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12151C; --surface:#1A1F29; --ink:#E7EAF0; --muted:#9AA3B5; --line:#323A4A;
+  --world:#5CC49C; --world-bg:#15302A; --model:#A2A5F4; --model-bg:#24264A;
+  --act:#E9A25B; --act-bg:#3A2A17; --tmp:#EE86A5; --tmp-bg:#3B1D28; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.65}
+main{max-width:880px;margin:0 auto;padding:32px 18px 80px}
+h1{font-size:30px;line-height:1.2;margin:0 0 10px;font-weight:600;text-wrap:balance}
+h2{font-size:22px;line-height:1.3;margin:56px 0 12px;font-weight:600;text-wrap:balance;display:flex;gap:12px;align-items:baseline}
+h2 .num{font-family:var(--font-mono);font-size:14px;color:var(--muted);font-weight:500}
+h3{font-size:17px;margin:28px 0 8px;font-weight:600}
+p,li{max-width:68ch}
+.lede{font-size:18px;color:var(--muted);max-width:62ch}
+code,.mono{font-family:var(--font-mono);font-size:.92em}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:24px 0 8px}
+nav a{font-size:14px;color:var(--ink);text-decoration:none;border:1px solid var(--line);background:var(--surface);padding:5px 11px;border-radius:999px}
+nav a:hover,nav a:focus-visible{border-color:var(--model);outline:none}
+figure{margin:20px 0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.scroll{overflow-x:auto}
+.scroll svg{display:block;width:100%;min-width:620px;height:auto}
+figcaption{font-size:14px;color:var(--muted);margin-top:10px;max-width:70ch}
+table{border-collapse:collapse;width:100%;font-size:15px;font-variant-numeric:tabular-nums}
+.tw{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;margin:16px 0}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;font-size:14px;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:14px;color:var(--muted);margin:8px 0 0}
+.legend span{display:flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:3px;border:1.5px solid}
+.callout{border-left:4px solid var(--model);background:var(--surface);padding:12px 16px;margin:18px 0;border-radius:0}
+.callout.warn{border-left-color:var(--tmp)}
+.algo{font-family:var(--font-mono);font-size:14px;line-height:1.7;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;white-space:pre}
+.algo .c{color:var(--muted)}
+.algo .k{color:var(--model);font-weight:500}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:999px;vertical-align:2px}
+.p-keep{background:var(--world-bg);color:var(--world)}
+.p-tmp{background:var(--tmp-bg);color:var(--tmp)}
+footer{margin-top:56px;font-size:14px;color:var(--muted)}
+/* svg roles */
+.lbl{fill:var(--ink);font:600 15px var(--font-body)}
+.sub{fill:var(--muted);font:400 13px var(--font-body)}
+.box{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.store{fill:var(--bg);stroke:var(--muted);stroke-width:1.2}
+.world{fill:var(--world-bg);stroke:var(--world);stroke-width:1.2}
+.model{fill:var(--model-bg);stroke:var(--model);stroke-width:1.2}
+.inner{fill:var(--surface);stroke:var(--model);stroke-width:1}
+.act{fill:var(--act-bg);stroke:var(--act);stroke-width:1.2}
+.tmp{fill:var(--tmp-bg);stroke:var(--tmp);stroke-width:1.2}
+.ar{stroke:var(--muted);stroke-width:1.5;fill:none}
+.ah{fill:var(--muted)}
+.axis{stroke:var(--muted);stroke-width:1}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Dreamer V1, step by step</h1>
+<p class="lede">How the agent from <em>Dream to Control</em> (Hafner et al., ICLR 2020) learns to make a cheetah run from pictures alone: play a little for real, then practice a lot in its own imagination.</p>
+
+<nav aria-label="Sections">
+  <a href="#parts">1 The parts</a>
+  <a href="#loop">2 The master loop</a>
+  <a href="#diary">3 The diary</a>
+  <a href="#play">4 Real play</a>
+  <a href="#study">5 Study</a>
+  <a href="#dream">6 Dream</a>
+  <a href="#memory">7 Memory</a>
+  <a href="#algorithm">8 Full algorithm</a>
+  <a href="#settings">9 Settings</a>
+  <a href="#words">10 Word list</a>
+</nav>
+
+<!-- 1 -->
+<h2 id="parts"><span class="num">01</span>The parts: world vs. agent</h2>
+<p>There are two sides. The <strong>environment</strong> is the game: a physics simulator holding the cheetah. The <strong>agent</strong> is the brain that plays it. The agent cannot look inside the game. It never sees joint angles or speeds, only a small 64×64 picture and one score number after every move.</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 760 430" role="img" aria-label="The environment sends an image and score to the agent; the agent contains a diary, a world model with six parts, an actor and a critic; the actor sends six push numbers back.">
+<defs><marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" class="ah"/></marker></defs>
+<rect x="20" y="40" width="200" height="220" rx="12" class="world"/>
+<text x="120" y="68" text-anchor="middle" class="lbl">Environment</text>
+<text x="120" y="88" text-anchor="middle" class="sub">(the simulator)</text>
+<text x="120" y="128" text-anchor="middle" class="sub">Runs physics in ticks</text>
+<text x="120" y="150" text-anchor="middle" class="sub">Holds true joint angles</text>
+<text x="120" y="168" text-anchor="middle" class="sub">and speeds (hidden)</text>
+<text x="120" y="194" text-anchor="middle" class="sub">Computes the score</text>
+<text x="120" y="230" text-anchor="middle" class="sub">Agent can't see inside</text>
+<rect x="320" y="20" width="420" height="390" rx="14" class="box"/>
+<text x="340" y="46" class="lbl">Agent</text>
+<rect x="340" y="64" width="380" height="50" rx="8" class="store"/>
+<text x="530" y="84" text-anchor="middle" class="lbl">Diary (replay buffer)</text>
+<text x="530" y="102" text-anchor="middle" class="sub">every real try: images, pushes, scores</text>
+<rect x="340" y="134" width="380" height="150" rx="10" class="model"/>
+<text x="356" y="156" class="lbl">World model (imagination)</text>
+<rect x="350" y="168" width="110" height="44" rx="6" class="inner"/><text x="405" y="195" text-anchor="middle" class="sub">Encoder</text>
+<rect x="475" y="168" width="110" height="44" rx="6" class="inner"/><text x="530" y="195" text-anchor="middle" class="sub">GRU memory</text>
+<rect x="600" y="168" width="110" height="44" rx="6" class="inner"/><text x="655" y="195" text-anchor="middle" class="sub">Prior</text>
+<rect x="350" y="224" width="110" height="44" rx="6" class="inner"/><text x="405" y="251" text-anchor="middle" class="sub">Posterior</text>
+<rect x="475" y="224" width="110" height="44" rx="6" class="inner"/><text x="530" y="251" text-anchor="middle" class="sub">Decoder</text>
+<rect x="600" y="224" width="110" height="44" rx="6" class="inner"/><text x="655" y="251" text-anchor="middle" class="sub">Reward model</text>
+<rect x="340" y="304" width="180" height="56" rx="8" class="act"/>
+<text x="430" y="326" text-anchor="middle" class="lbl">Actor</text>
+<text x="430" y="346" text-anchor="middle" class="sub">picks the 6 pushes</text>
+<rect x="540" y="304" width="180" height="56" rx="8" class="act"/>
+<text x="630" y="326" text-anchor="middle" class="lbl">Critic</text>
+<text x="630" y="346" text-anchor="middle" class="sub">scores the long run</text>
+<text x="530" y="390" text-anchor="middle" class="sub">Actor and critic use the world model to dream</text>
+<line x1="220" y1="90" x2="336" y2="90" class="ar" marker-end="url(#a1)"/>
+<text x="272" y="80" text-anchor="middle" class="sub">image + score</text>
+<path d="M340 332 L270 332 L270 200 L224 200" class="ar" marker-end="url(#a1)"/>
+<text x="230" y="352" class="sub">6 push numbers</text>
+</svg>
+</div>
+<figcaption>Three separate neural networks live inside the agent: the world model, the actor, and the critic. Each has its own weights and its own trainer. The diary is plain stored data.</figcaption>
+</figure>
+
+<div class="tw"><table>
+<thead><tr><th>Part</th><th>Belongs to</th><th>Job in one line</th></tr></thead>
+<tbody>
+<tr><td>Encoder (eyes)</td><td>World model</td><td>Turns a 64×64 image into a list of numbers <span class="mono">e</span></td></tr>
+<tr><td>GRU memory</td><td>World model</td><td>Carries the story so far as 200 numbers <span class="mono">h</span></td></tr>
+<tr><td>Prior (eyes closed)</td><td>World model</td><td>Guesses the moment <span class="mono">z</span> from memory only, no image</td></tr>
+<tr><td>Posterior (eyes open)</td><td>World model</td><td>Works out <span class="mono">z</span> from memory plus the image</td></tr>
+<tr><td>Decoder</td><td>World model</td><td>Redraws the image from the summary. Used only while studying</td></tr>
+<tr><td>Reward model</td><td>World model</td><td>Guesses the score of one moment</td></tr>
+<tr><td>Actor</td><td>Separate network</td><td>Reads the summary, outputs the 6 pushes</td></tr>
+<tr><td>Critic (value model)</td><td>Separate network</td><td>Guesses the total future score from a moment</td></tr>
+<tr><td>Diary (replay buffer)</td><td>Stored data</td><td>Keeps every real try forever</td></tr>
+</tbody></table></div>
+
+<p>The <strong>summary</strong> of a moment is <span class="mono">s = (h, z)</span>: 200 memory numbers plus 30 "what's happening now" numbers, about 230 in total. Everything the agent knows about the cheetah at a moment is squeezed into these numbers.</p>
+
+<!-- 2 -->
+<h2 id="loop"><span class="num">02</span>The master loop</h2>
+<p>This is the whole program from start to finish. One <strong>round</strong> is 100 study-and-dream updates followed by one real try. The paper runs roughly 1,000 rounds (about one million simulator frames).</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 760 720" role="img" aria-label="Start with an empty diary, play 5 random tries, then repeat rounds: study, dream, 100 times, then play one real try and save it, for about 1000 rounds.">
+<defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" class="ah"/></marker></defs>
+<rect x="220" y="20" width="320" height="48" rx="8" class="store"/>
+<text x="380" y="49" text-anchor="middle" class="lbl">Start: empty diary, random weights</text>
+<line x1="380" y1="68" x2="380" y2="96" class="ar" marker-end="url(#a2)"/>
+<rect x="220" y="100" width="320" height="56" rx="8" class="world"/>
+<text x="380" y="122" text-anchor="middle" class="lbl">5 random tries</text>
+<text x="380" y="142" text-anchor="middle" class="sub">2,500 random steps saved to diary</text>
+<line x1="380" y1="156" x2="380" y2="212" class="ar" marker-end="url(#a2)"/>
+<rect x="150" y="180" width="460" height="440" rx="14" class="box" stroke-dasharray="6 5"/>
+<text x="166" y="202" class="lbl">One round</text>
+<rect x="220" y="216" width="320" height="56" rx="8" class="model"/>
+<text x="380" y="238" text-anchor="middle" class="lbl">Study the diary</text>
+<text x="380" y="258" text-anchor="middle" class="sub">world model learns from 50 clips</text>
+<line x1="380" y1="272" x2="380" y2="296" class="ar" marker-end="url(#a2)"/>
+<rect x="220" y="300" width="320" height="56" rx="8" class="act"/>
+<text x="380" y="322" text-anchor="middle" class="lbl">Dream and judge</text>
+<text x="380" y="342" text-anchor="middle" class="sub">actor + critic learn from 2,500 dreams</text>
+<line x1="380" y1="356" x2="380" y2="380" class="ar" marker-end="url(#a2)"/>
+<rect x="220" y="384" width="320" height="56" rx="8" class="box"/>
+<text x="380" y="406" text-anchor="middle" class="lbl">Done 100 updates?</text>
+<text x="380" y="426" text-anchor="middle" class="sub">each update uses new random clips</text>
+<path d="M220 412 L180 412 L180 244 L216 244" class="ar" marker-end="url(#a2)"/>
+<text x="188" y="334" class="sub">No</text>
+<line x1="380" y1="440" x2="380" y2="464" class="ar" marker-end="url(#a2)"/>
+<text x="392" y="457" class="sub">Yes</text>
+<rect x="220" y="468" width="320" height="56" rx="8" class="world"/>
+<text x="380" y="490" text-anchor="middle" class="lbl">Play 1 real try</text>
+<text x="380" y="510" text-anchor="middle" class="sub">500 steps, actor + small noise</text>
+<line x1="380" y1="524" x2="380" y2="548" class="ar" marker-end="url(#a2)"/>
+<rect x="220" y="552" width="320" height="48" rx="8" class="store"/>
+<text x="380" y="581" text-anchor="middle" class="lbl">Save the try to the diary</text>
+<path d="M540 576 L650 576 L650 244 L544 244" class="ar" marker-end="url(#a2)"/>
+<text x="660" y="400" class="sub">Repeat</text>
+<text x="660" y="418" class="sub">~1000 rounds</text>
+<line x1="380" y1="600" x2="380" y2="646" class="ar" marker-end="url(#a2)"/>
+<text x="392" y="636" class="sub">when trained</text>
+<rect x="220" y="650" width="320" height="48" rx="8" class="world"/>
+<text x="380" y="679" text-anchor="middle" class="lbl">Cheetah runs well</text>
+</svg>
+</div>
+<figcaption>Real play happens once per round. Studying and dreaming happen 100 times per round. That imbalance is why Dreamer needs so little real experience.</figcaption>
+</figure>
+
+<div class="tw"><table>
+<thead><tr><th>Word</th><th>Size</th><th>Made of</th></tr></thead>
+<tbody>
+<tr><td>Step</td><td>1 decision</td><td>see 1 image → send 6 pushes → get 1 score (2 simulator ticks)</td></tr>
+<tr><td>Try (episode)</td><td>500 steps</td><td>one full attempt from the starting pose to the time limit</td></tr>
+<tr><td>Diary</td><td>all tries</td><td>5 random tries + 1 new try per round, never deleted</td></tr>
+<tr><td>Clip</td><td>50 steps</td><td>a slice cut from one try at a random spot</td></tr>
+<tr><td>Batch</td><td>50 clips</td><td>2,500 steps of study material for one update</td></tr>
+<tr><td>Update</td><td>1 study + 1 dream</td><td>every network gets adjusted once</td></tr>
+<tr><td>Round</td><td>100 updates + 1 try</td><td>one turn of the loop above</td></tr>
+<tr><td>Training run</td><td>~1,000 rounds</td><td>until the cheetah runs</td></tr>
+</tbody></table></div>
+
+<!-- 3 -->
+<h2 id="diary"><span class="num">03</span>The diary (replay buffer)</h2>
+<p>The diary starts empty. During each try, one row is written per step. When the try ends, its 500 rows are saved together as one file in a folder on disk (a compressed NumPy file in the authors' code, roughly 6 MB), and loaded into RAM so clips can be cut quickly.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Step</th><th>Image</th><th>Push (action)</th><th>Score (reward)</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>starting picture</td><td class="mono">0, 0, 0, 0, 0, 0</td><td class="mono">0.00</td></tr>
+<tr><td>2</td><td>new picture</td><td class="mono">0.3, −0.8, 0.1, 0.9, −0.2, 0.5</td><td class="mono">0.01</td></tr>
+<tr><td>3</td><td>new picture</td><td class="mono">−0.6, 0.4, 0.7, −0.1, 0.2, −0.9</td><td class="mono">0.00</td></tr>
+<tr><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+<tr><td>500</td><td>final picture</td><td class="mono">…</td><td class="mono">0.03</td></tr>
+</tbody></table></div>
+
+<ul>
+<li><strong>Image:</strong> 64 × 64 pixels × 3 colours = 12,288 whole numbers from 0 to 255.</li>
+<li><strong>Push:</strong> 6 decimals between −1 and +1, one per leg joint.</li>
+<li><strong>Score:</strong> 1 decimal between 0 and 1. The simulator computes it from a formula the task designers wrote (roughly "faster forward = higher"). The agent only ever receives the number.</li>
+</ul>
+<p>The diary never stores summaries, memory, or dreams. Those are recalculated with the newest world model every time, so they are never out of date.</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 760 310" role="img" aria-label="Six tries shown as long bars of 500 steps; four short highlighted windows of 50 steps are cut out as clips at random spots.">
+<text x="20" y="45" class="sub">Try 1 (random)</text><rect x="140" y="31" width="580" height="20" rx="3" class="store"/><rect x="279" y="31" width="58" height="20" rx="3" class="tmp"/>
+<text x="20" y="79" class="sub">Try 2 (random)</text><rect x="140" y="65" width="580" height="20" rx="3" class="store"/>
+<text x="20" y="113" class="sub">Try 3 (random)</text><rect x="140" y="99" width="580" height="20" rx="3" class="store"/><rect x="488" y="99" width="58" height="20" rx="3" class="tmp"/>
+<text x="20" y="147" class="sub">Try 4 (random)</text><rect x="140" y="133" width="580" height="20" rx="3" class="store"/><rect x="163" y="133" width="58" height="20" rx="3" class="tmp"/>
+<text x="20" y="181" class="sub">Try 5 (random)</text><rect x="140" y="167" width="580" height="20" rx="3" class="store"/>
+<text x="20" y="215" class="sub">Try 6 (actor)</text><rect x="140" y="201" width="580" height="20" rx="3" class="world"/><rect x="604" y="201" width="58" height="20" rx="3" class="tmp"/>
+<line x1="140" y1="240" x2="720" y2="240" class="axis"/>
+<line x1="140" y1="236" x2="140" y2="244" class="axis"/><text x="140" y="262" text-anchor="middle" class="sub">0</text>
+<line x1="256" y1="236" x2="256" y2="244" class="axis"/><text x="256" y="262" text-anchor="middle" class="sub">100</text>
+<line x1="372" y1="236" x2="372" y2="244" class="axis"/><text x="372" y="262" text-anchor="middle" class="sub">200</text>
+<line x1="488" y1="236" x2="488" y2="244" class="axis"/><text x="488" y="262" text-anchor="middle" class="sub">300</text>
+<line x1="604" y1="236" x2="604" y2="244" class="axis"/><text x="604" y="262" text-anchor="middle" class="sub">400</text>
+<line x1="720" y1="236" x2="720" y2="244" class="axis"/><text x="720" y="262" text-anchor="middle" class="sub">500 steps</text>
+<rect x="140" y="282" width="40" height="16" rx="3" class="tmp"/>
+<text x="190" y="295" class="sub">one clip = 50 steps, cut from a random try at a random spot (50 per batch)</text>
+</svg>
+</div>
+<figcaption>Making one batch: 50 times, pick a random try and a random start step, and cut out 50 rows. Old random tries stay in the diary and keep being used.</figcaption>
+</figure>
+
+<!-- 4 -->
+<h2 id="play"><span class="num">04</span>Real play (one try)</h2>
+<p>This is the only time the agent touches the real game. It happens 5 times with random pushes at the very start, then once per round with the actor. Each step:</p>
+<ol>
+<li>The simulator shows an image.</li>
+<li>The encoder turns it into numbers, the GRU updates the memory <span class="mono">h</span>, and the posterior works out <span class="mono">z</span>. That gives the summary <span class="mono">s</span>.</li>
+<li>The actor reads <span class="mono">s</span> and outputs 6 pushes.</li>
+<li>A small random number is added to each push (spread 0.3), so the cheetah tries slightly new moves. For example, 0.50 becomes 0.62.</li>
+<li>The simulator applies the push for 2 ticks, then returns a new image and score.</li>
+<li>The row (image, push, score) is written down. After 500 steps the try is saved to the diary.</li>
+</ol>
+<p>No network learns during real play. Memory <span class="mono">h</span> starts at zero when the try begins and is thrown away when it ends.</p>
+
+<h3>What "repeat each action for 2 ticks" means</h3>
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 760 200" role="img" aria-label="Timeline of simulator ticks; the agent decides every second tick and the same push is held for two ticks.">
+<text x="60" y="44" text-anchor="middle" class="sub">decide A</text><circle cx="60" cy="66" r="9" class="act"/>
+<text x="260" y="44" text-anchor="middle" class="sub">decide B</text><circle cx="260" cy="66" r="9" class="act"/>
+<text x="460" y="44" text-anchor="middle" class="sub">decide C</text><circle cx="460" cy="66" r="9" class="act"/>
+<text x="660" y="44" text-anchor="middle" class="sub">decide D</text><circle cx="660" cy="66" r="9" class="act"/>
+<rect x="64" y="90" width="192" height="34" rx="6" class="act"/><text x="160" y="112" text-anchor="middle" class="sub">push A held 2 ticks</text>
+<rect x="264" y="90" width="192" height="34" rx="6" class="act"/><text x="360" y="112" text-anchor="middle" class="sub">push B held 2 ticks</text>
+<rect x="464" y="90" width="192" height="34" rx="6" class="act"/><text x="560" y="112" text-anchor="middle" class="sub">push C held 2 ticks</text>
+<line x1="60" y1="138" x2="700" y2="138" class="axis"/>
+<line x1="60" y1="134" x2="60" y2="142" class="axis"/><text x="60" y="158" text-anchor="middle" class="sub">tick 0</text>
+<line x1="160" y1="134" x2="160" y2="142" class="axis"/><text x="160" y="158" text-anchor="middle" class="sub">1</text>
+<line x1="260" y1="134" x2="260" y2="142" class="axis"/><text x="260" y="158" text-anchor="middle" class="sub">2</text>
+<line x1="360" y1="134" x2="360" y2="142" class="axis"/><text x="360" y="158" text-anchor="middle" class="sub">3</text>
+<line x1="460" y1="134" x2="460" y2="142" class="axis"/><text x="460" y="158" text-anchor="middle" class="sub">4</text>
+<line x1="560" y1="134" x2="560" y2="142" class="axis"/><text x="560" y="158" text-anchor="middle" class="sub">5</text>
+<line x1="660" y1="134" x2="660" y2="142" class="axis"/><text x="660" y="158" text-anchor="middle" class="sub">6</text>
+<text x="260" y="184" text-anchor="middle" class="sub">image + score</text>
+<text x="460" y="184" text-anchor="middle" class="sub">image + score</text>
+<text x="660" y="184" text-anchor="middle" class="sub">image + score</text>
+</svg>
+</div>
+<figcaption>The simulator moves in tiny ticks. The agent decides only every 2nd tick and the push is held in between, like holding a game button for 2 frames. 1,000 ticks per try means 500 decisions. Scores from both ticks are added together.</figcaption>
+</figure>
+
+<!-- 5 -->
+<h2 id="study"><span class="num">05</span>Study: how the world model learns</h2>
+<p>Take one batch of 50 clips. For each clip, memory starts at zero and the model walks through the 50 steps in order. At every step it does the following. All 50 clips run side by side on the GPU.</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 760 690" role="img" aria-label="One study step: previous summary and real push enter the GRU; the real image enters the encoder; prior and posterior compute z; three comparisons produce errors that adjust the world model.">
+<defs><marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" class="ah"/></marker></defs>
+<rect x="20" y="20" width="200" height="56" rx="8" class="box"/><text x="120" y="42" text-anchor="middle" class="lbl">Previous summary</text><text x="120" y="62" text-anchor="middle" class="sub">(h, z) from last step</text>
+<rect x="240" y="20" width="200" height="56" rx="8" class="store"/><text x="340" y="42" text-anchor="middle" class="lbl">Real push</text><text x="340" y="62" text-anchor="middle" class="sub">from the diary</text>
+<rect x="540" y="20" width="200" height="56" rx="8" class="store"/><text x="640" y="42" text-anchor="middle" class="lbl">Real image</text><text x="640" y="62" text-anchor="middle" class="sub">from the diary</text>
+<line x1="120" y1="76" x2="200" y2="106" class="ar" marker-end="url(#a4)"/>
+<line x1="340" y1="76" x2="300" y2="106" class="ar" marker-end="url(#a4)"/>
+<line x1="640" y1="76" x2="640" y2="106" class="ar" marker-end="url(#a4)"/>
+<rect x="130" y="110" width="260" height="56" rx="8" class="model"/><text x="260" y="132" text-anchor="middle" class="lbl">GRU memory</text><text x="260" y="152" text-anchor="middle" class="sub">new h (200 numbers)</text>
+<rect x="540" y="110" width="200" height="56" rx="8" class="model"/><text x="640" y="132" text-anchor="middle" class="lbl">Encoder (eyes)</text><text x="640" y="152" text-anchor="middle" class="sub">image → numbers e</text>
+<line x1="200" y1="166" x2="170" y2="206" class="ar" marker-end="url(#a4)"/>
+<line x1="330" y1="166" x2="518" y2="207" class="ar" marker-end="url(#a4)"/>
+<line x1="640" y1="166" x2="640" y2="206" class="ar" marker-end="url(#a4)"/>
+<rect x="20" y="210" width="300" height="56" rx="8" class="model"/><text x="170" y="232" text-anchor="middle" class="lbl">Prior: eyes closed</text><text x="170" y="252" text-anchor="middle" class="sub">guesses z from h only</text>
+<rect x="420" y="210" width="320" height="56" rx="8" class="model"/><text x="580" y="232" text-anchor="middle" class="lbl">Posterior: eyes open</text><text x="580" y="252" text-anchor="middle" class="sub">works out z from h + image</text>
+<line x1="170" y1="266" x2="170" y2="306" class="ar" marker-end="url(#a4)"/>
+<line x1="470" y1="266" x2="304" y2="308" class="ar" marker-end="url(#a4)"/>
+<line x1="600" y1="266" x2="600" y2="306" class="ar" marker-end="url(#a4)"/>
+<rect x="20" y="310" width="300" height="56" rx="8" class="tmp"/><text x="170" y="332" text-anchor="middle" class="lbl">③ Compare summaries</text><text x="170" y="352" text-anchor="middle" class="sub">eyes closed vs eyes open</text>
+<rect x="420" y="310" width="320" height="56" rx="8" class="model"/><text x="580" y="332" text-anchor="middle" class="lbl">Summary s = (h, z)</text><text x="580" y="352" text-anchor="middle" class="sub">eyes-open, passed to next step</text>
+<line x1="510" y1="366" x2="456" y2="406" class="ar" marker-end="url(#a4)"/>
+<line x1="660" y1="366" x2="652" y2="406" class="ar" marker-end="url(#a4)"/>
+<rect x="360" y="410" width="180" height="56" rx="8" class="model"/><text x="450" y="432" text-anchor="middle" class="lbl">Decoder</text><text x="450" y="452" text-anchor="middle" class="sub">redraws the image</text>
+<rect x="560" y="410" width="180" height="56" rx="8" class="model"/><text x="650" y="432" text-anchor="middle" class="lbl">Reward model</text><text x="650" y="452" text-anchor="middle" class="sub">guesses the score</text>
+<line x1="450" y1="466" x2="450" y2="506" class="ar" marker-end="url(#a4)"/>
+<line x1="650" y1="466" x2="650" y2="506" class="ar" marker-end="url(#a4)"/>
+<rect x="360" y="510" width="180" height="56" rx="8" class="tmp"/><text x="450" y="532" text-anchor="middle" class="lbl">① Compare images</text><text x="450" y="552" text-anchor="middle" class="sub">vs the real image</text>
+<rect x="560" y="510" width="180" height="56" rx="8" class="tmp"/><text x="650" y="532" text-anchor="middle" class="lbl">② Compare scores</text><text x="650" y="552" text-anchor="middle" class="sub">vs the real score</text>
+<path d="M170 366 L170 638 L176 638" class="ar" marker-end="url(#a4)"/>
+<line x1="450" y1="566" x2="420" y2="606" class="ar" marker-end="url(#a4)"/>
+<line x1="650" y1="566" x2="600" y2="606" class="ar" marker-end="url(#a4)"/>
+<rect x="180" y="610" width="480" height="56" rx="8" class="act"/><text x="420" y="632" text-anchor="middle" class="lbl">Add the 3 errors → adjust the world model</text><text x="420" y="652" text-anchor="middle" class="sub">then delete all these temporary numbers</text>
+</svg>
+</div>
+<figcaption>The real push comes from the diary. The actor is not involved in studying. The eyes-open summary is carried to the next step, and in the next step it becomes the "previous summary".</figcaption>
+</figure>
+
+<h3>The three comparisons</h3>
+<div class="tw"><table>
+<thead><tr><th>#</th><th>Compares</th><th>With</th><th>What it teaches</th></tr></thead>
+<tbody>
+<tr><td>①</td><td>Redrawn image</td><td>Real image (diary)</td><td>The summary must hold everything visible: leg positions, tilt, height</td></tr>
+<tr><td>②</td><td>Guessed score</td><td>Real score (diary)</td><td>The reward model learns which moments score well</td></tr>
+<tr><td>③</td><td>Eyes-closed <span class="mono">z</span></td><td>Eyes-open <span class="mono">z</span></td><td>The prior learns to predict without pictures, which is what makes dreaming possible</td></tr>
+</tbody></table></div>
+
+<p><strong>How "eyes closed" and "eyes open" work.</strong> They are two small networks. Both receive the same memory <span class="mono">h</span>. Only the posterior also receives the image numbers <span class="mono">e</span>. Each outputs 30 best values plus 30 "how unsure" values (a Gaussian). Comparison ③ measures how different the two are (the KL divergence) and nudges both toward each other. If they are already within 3 "free nats", no nudge is applied.</p>
+
+<div class="tw"><table>
+<thead><tr><th>For one of the 30 numbers</th><th>Best value</th><th>Unsure by</th></tr></thead>
+<tbody>
+<tr><td>Eyes closed (prior)</td><td class="mono">0.40</td><td class="mono">± 0.30</td></tr>
+<tr><td>Eyes open (posterior)</td><td class="mono">0.55</td><td class="mono">± 0.05</td></tr>
+</tbody></table></div>
+
+<div class="callout"><strong>Why the decoder exists.</strong> It is a teacher for the world model, not something a human needs. If 230 numbers can redraw the whole picture, they must contain the important facts. The decoder is used only while studying, never in dreams or real play.</div>
+
+<!-- 6 -->
+<h2 id="dream"><span class="num">06</span>Dream: how the actor and critic learn</h2>
+<p>Right after studying, in the same update, the world model is frozen. Every one of the 2,500 eyes-open summaries from the batch becomes the starting point of a 15-step dream. The 2,500 summaries are stacked into one table of 2,500 rows, and the GPU runs every row at the same time.</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 760 290" role="img" aria-label="A dream: a real start summary, then the actor picks a push and the world model imagines the next summary, repeated 15 times, with a guessed score at each step and the critic at the end; 2,500 dreams run at once.">
+<defs><marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1L9 5L1 9z" class="ah"/></marker></defs>
+<rect x="36" y="46" width="700" height="190" rx="12" class="box"/>
+<rect x="28" y="38" width="700" height="190" rx="12" class="box"/>
+<rect x="20" y="30" width="700" height="190" rx="12" class="box" style="stroke:var(--act)"/>
+<text x="40" y="56" class="lbl">One dream (2,500 run at once)</text>
+<circle cx="80" cy="120" r="22" class="world"/><text x="80" y="125" text-anchor="middle" class="lbl">s0</text>
+<circle cx="210" cy="120" r="22" class="model"/><text x="210" y="125" text-anchor="middle" class="lbl">s1</text>
+<circle cx="340" cy="120" r="22" class="model"/><text x="340" y="125" text-anchor="middle" class="lbl">s2</text>
+<circle cx="470" cy="120" r="22" class="model"/><text x="470" y="125" text-anchor="middle" class="lbl">s3</text>
+<text x="560" y="125" text-anchor="middle" class="lbl">…</text>
+<circle cx="650" cy="120" r="22" class="model"/><text x="650" y="125" text-anchor="middle" class="lbl">s15</text>
+<line x1="102" y1="120" x2="184" y2="120" class="ar" marker-end="url(#a5)"/><text x="145" y="104" text-anchor="middle" class="sub">push</text>
+<line x1="232" y1="120" x2="314" y2="120" class="ar" marker-end="url(#a5)"/><text x="275" y="104" text-anchor="middle" class="sub">push</text>
+<line x1="362" y1="120" x2="444" y2="120" class="ar" marker-end="url(#a5)"/><text x="405" y="104" text-anchor="middle" class="sub">push</text>
+<line x1="492" y1="120" x2="538" y2="120" class="ar" marker-end="url(#a5)"/>
+<line x1="580" y1="120" x2="624" y2="120" class="ar" marker-end="url(#a5)"/>
+<text x="80" y="164" text-anchor="middle" class="sub">real start</text>
+<text x="210" y="164" text-anchor="middle" class="sub">score 0.2</text>
+<text x="340" y="164" text-anchor="middle" class="sub">score 0.3</text>
+<text x="470" y="164" text-anchor="middle" class="sub">score 0.5</text>
+<text x="650" y="164" text-anchor="middle" class="sub">critic: rest ≈ 10</text>
+<text x="370" y="204" text-anchor="middle" class="sub">each arrow: actor picks a push → prior imagines the next summary (no image is drawn)</text>
+<text x="380" y="270" text-anchor="middle" class="sub">2,500 rows in one table: the GPU processes every row in the same operation</text>
+</svg>
+</div>
+<figcaption>15 steps = 30 simulator ticks of imagined future. The reward model guesses each step's score. The critic guesses everything after the last step. Nothing touches the real simulator.</figcaption>
+</figure>
+
+<h3>Turning a dream into one number: the λ-return</h3>
+<p>Short example with a 3-step dream, using simple settings (λ = 0.5, no discount) so the arithmetic is easy to follow.</p>
+<div class="tw"><table>
+<thead><tr><th></th><th>Step 1</th><th>Step 2</th><th>Step 3</th><th>After step 3</th></tr></thead>
+<tbody>
+<tr><td>Guessed score</td><td class="mono">0.2</td><td class="mono">0.3</td><td class="mono">0.5</td><td>—</td></tr>
+<tr><td>Critic's guess</td><td>—</td><td class="mono">8</td><td class="mono">9</td><td class="mono">10</td></tr>
+</tbody></table></div>
+<div class="tw"><table>
+<thead><tr><th>Look-ahead</th><th>Calculation</th><th>Estimate</th><th>Weight</th></tr></thead>
+<tbody>
+<tr><td>1 step</td><td class="mono">0.2 + 8</td><td class="mono">8.2</td><td class="mono">50%</td></tr>
+<tr><td>2 steps</td><td class="mono">0.2 + 0.3 + 9</td><td class="mono">9.5</td><td class="mono">25%</td></tr>
+<tr><td>3 steps</td><td class="mono">0.2 + 0.3 + 0.5 + 10</td><td class="mono">11.0</td><td class="mono">25%</td></tr>
+<tr><td><strong>λ-return</strong></td><td class="mono">0.5×8.2 + 0.25×9.5 + 0.25×11.0</td><td class="mono"><strong>9.225</strong></td><td></td></tr>
+</tbody></table></div>
+<p>The real settings are 15 steps, λ = 0.95 and γ = 0.99 (future scores count slightly less). The blend trusts the guessed scores for the near future and hands over to the critic for the far future, so the agent cares about more than 15 steps ahead.</p>
+
+<h3>What each network does with that number</h3>
+<div class="tw"><table>
+<thead><tr><th>Network</th><th>Goal</th><th>How</th></tr></thead>
+<tbody>
+<tr><td>Actor</td><td>Make the λ-return bigger</td><td>Every step of the dream is a neural network, so the error can be traced back from the score through the summaries to each push. The actor learns exactly which way to change each push (reparameterisation gradients, not trial and error).</td></tr>
+<tr><td>Critic</td><td>Guess the λ-return more accurately</td><td>Squared error between its guess and the λ-return. The λ-return is treated as a fixed answer key.</td></tr>
+<tr><td>World model</td><td>Nothing here</td><td>Frozen while dreaming. It only learns while studying.</td></tr>
+</tbody></table></div>
+
+<h3>Reward model vs. critic</h3>
+<div class="tw"><table>
+<thead><tr><th></th><th>Reward model</th><th>Critic (value model)</th></tr></thead>
+<tbody>
+<tr><td>Question</td><td>How good is this one moment?</td><td>How good is everything from here on?</td></tr>
+<tr><td>Exam analogy</td><td>Today's quiz mark</td><td>Predicted final grade for the year</td></tr>
+<tr><td>Learns from</td><td>Real scores in the diary (while studying)</td><td>λ-returns from dreams (while dreaming)</td></tr>
+<tr><td>Part of</td><td>World model</td><td>Separate network</td></tr>
+</tbody></table></div>
+
+<p><strong>The actor's output.</strong> For each of the 6 joints it gives a best push and how unsure it is. A random value is drawn near the best push and squashed into −1…+1 with tanh. In real play the best push is used, plus exploration noise. For Atari games the actor instead gives a probability for each button.</p>
+
+<!-- 7 -->
+<h2 id="memory"><span class="num">07</span>Memory: what is kept, for how long</h2>
+<p>Only two things survive: the networks' weights (the skills) and the diary (the experience). Everything else is scratch work that is created, used and deleted.</p>
+
+<figure>
+<div class="scroll">
+<svg viewBox="0 0 760 285" role="img" aria-label="Timeline of one round showing how long weights, diary, clips, GRU memory, dreams and play memory each last.">
+<text x="250" y="24" text-anchor="middle" class="sub">Update 1</text>
+<text x="340" y="24" text-anchor="middle" class="sub">Update 2</text>
+<text x="420" y="24" text-anchor="middle" class="sub">…</text>
+<text x="500" y="24" text-anchor="middle" class="sub">Update 100</text>
+<text x="650" y="24" text-anchor="middle" class="sub">Real try</text>
+<text x="20" y="65" class="lbl">Weights</text><rect x="210" y="51" width="530" height="18" rx="4" class="model"/>
+<text x="20" y="105" class="lbl">Diary</text><rect x="210" y="91" width="530" height="18" rx="4" class="store"/><rect x="722" y="91" width="18" height="18" rx="3" class="world"/>
+<text x="20" y="145" class="lbl">Clips (batch)</text>
+<rect x="210" y="131" width="80" height="18" rx="4" class="tmp"/><rect x="300" y="131" width="80" height="18" rx="4" class="tmp"/><text x="420" y="145" text-anchor="middle" class="sub">…</text><rect x="460" y="131" width="80" height="18" rx="4" class="tmp"/>
+<text x="20" y="185" class="lbl">GRU (study)</text>
+<rect x="210" y="171" width="40" height="18" rx="4" class="tmp"/><rect x="300" y="171" width="40" height="18" rx="4" class="tmp"/><text x="420" y="185" text-anchor="middle" class="sub">…</text><rect x="460" y="171" width="40" height="18" rx="4" class="tmp"/>
+<text x="20" y="225" class="lbl">Dreams</text>
+<rect x="250" y="211" width="40" height="18" rx="4" class="act"/><rect x="340" y="211" width="40" height="18" rx="4" class="act"/><text x="420" y="225" text-anchor="middle" class="sub">…</text><rect x="500" y="211" width="40" height="18" rx="4" class="act"/>
+<text x="20" y="265" class="lbl">GRU (play)</text><rect x="560" y="251" width="180" height="18" rx="4" class="world"/>
+</svg>
+</div>
+<figcaption>Weights run the whole way and are adjusted after every update. The diary runs the whole way and gains one try (small green block) at the end of each round. Clips, study memory and dreams exist only inside their own update. Play memory exists only during the real try.</figcaption>
+</figure>
+
+<div class="tw"><table>
+<thead><tr><th>Thing</th><th>Where it lives</th><th>Created</th><th>Changed</th><th>Deleted</th></tr></thead>
+<tbody>
+<tr><td>Network weights <span class="pill p-keep">kept</span></td><td>GPU memory (saved to disk)</td><td>Start, random</td><td>After every update</td><td>Never</td></tr>
+<tr><td>Diary <span class="pill p-keep">kept</span></td><td>Files on disk, loaded in RAM</td><td>Start, empty</td><td>+1 try per round</td><td>Never</td></tr>
+<tr><td>Batch of 50 clips <span class="pill p-tmp">temporary</span></td><td>GPU memory</td><td>Start of each update</td><td>—</td><td>End of that update</td></tr>
+<tr><td>Summaries, prior and posterior <span class="pill p-tmp">temporary</span></td><td>GPU memory</td><td>While studying</td><td>Each step</td><td>End of that update</td></tr>
+<tr><td>2,500 dreams <span class="pill p-tmp">temporary</span></td><td>GPU memory</td><td>After studying</td><td>—</td><td>End of that update</td></tr>
+<tr><td>GRU memory h, study <span class="pill p-tmp">temporary</span></td><td>GPU memory</td><td>Zero at each clip start</td><td>Every step</td><td>End of the clip</td></tr>
+<tr><td>GRU memory h, play <span class="pill p-tmp">temporary</span></td><td>GPU/CPU memory</td><td>Zero at try start</td><td>Every step</td><td>End of the try</td></tr>
+</tbody></table></div>
+
+<h3>How the GRU "stores" memory</h3>
+<p>The GRU has no special storage. Its memory is a list of 200 numbers held in ordinary computer memory, like any variable. Every step it computes <span class="mono">new h = GRU(old h, last z, last push)</span> and overwrites the old numbers. Gates inside decide how much of the old story to keep and how much to replace. The <em>knowledge of how to remember</em> is in the GRU's weights, which are kept. <em>What it currently remembers</em> is <span class="mono">h</span>, which is overwritten every step.</p>
+
+<h3>Rough sizes (my arithmetic from the stated shapes)</h3>
+<div class="tw"><table>
+<thead><tr><th>Item</th><th>Size</th></tr></thead>
+<tbody>
+<tr><td>One image</td><td class="mono">12,288 bytes</td></tr>
+<tr><td>One try (500 images)</td><td class="mono">≈ 6 MB</td></tr>
+<tr><td>Diary after ~1,000 tries</td><td class="mono">≈ 6 GB</td></tr>
+<tr><td>One batch of images, as decimals</td><td class="mono">≈ 123 MB</td></tr>
+<tr><td>One summary (≈230 decimals)</td><td class="mono">≈ 0.9 KB</td></tr>
+<tr><td>All 2,500 × 16 dream summaries</td><td class="mono">≈ 37 MB</td></tr>
+<tr><td>Same dreams if images were drawn</td><td class="mono">≈ 1.8 GB</td></tr>
+</tbody></table></div>
+<p>Dreaming in summaries instead of pictures is about 50 times lighter, which is what lets thousands of dreams run at once.</p>
+
+<!-- 8 -->
+<h2 id="algorithm"><span class="num">08</span>The full algorithm</h2>
+<p>Plain-language version, with the paper's names in brackets.</p>
+<div class="algo"><span class="c">// setup</span>
+diary ← 5 tries with random pushes                         <span class="c">[S = 5 seed episodes]</span>
+world model θ, actor φ, critic ψ ← random weights
+
+<span class="k">repeat</span> for about 1,000 rounds:
+
+  <span class="k">repeat</span> 100 times:                                         <span class="c">[C = 100 updates]</span>
+
+    <span class="c">// A. study: world model learns</span>
+    batch ← 50 clips × 50 steps cut from random tries     <span class="c">[B = 50, L = 50]</span>
+    for each clip, memory h ← 0
+    for step t = 1 … 50:
+        h      ← GRU(previous h, previous z, real push)
+        prior  ← guess z from h                        <span class="c">[transition q(s_t | s_t-1, a_t-1)]</span>
+        e      ← encoder(real image)
+        z      ← posterior from h and e                 <span class="c">[representation p(s_t | s_t-1, a_t-1, o_t)]</span>
+        image' ← decoder(h, z)                           <span class="c">[observation q(o_t | s_t)]</span>
+        score' ← reward model(h, z)                      <span class="c">[reward q(r_t | s_t)]</span>
+    error ← (image' vs image) + (score' vs score)
+            + KL(posterior ‖ prior), ignoring KL below 3 nats
+    adjust θ to reduce error                             <span class="c">[Adam, lr 6e-4]</span>
+
+    <span class="c">// B. dream: actor and critic learn (θ frozen)</span>
+    starts ← all 2,500 summaries (h, z) from step A, detached
+    for dream step τ = 1 … 15:                           <span class="c">[H = 15]</span>
+        push   ← actor(summary)                          <span class="c">[q(a_τ | s_τ), tanh Gaussian]</span>
+        summary← prior imagines next (h, z)
+        score' ← reward model(summary)
+        value  ← critic(summary)                         <span class="c">[v(s_τ)]</span>
+    target ← λ-return from scores and values             <span class="c">[V_λ, γ = 0.99, λ = 0.95]</span>
+    adjust φ to make Σ target bigger                     <span class="c">[backprop through the dream]</span>
+    adjust ψ toward target (target held fixed)           <span class="c">[½(v − V_λ)²]</span>
+    delete batch, summaries, dreams
+
+  <span class="c">// C. real play: one try</span>
+  h ← 0, image ← simulator.reset()
+  for step t = 1 … 500:
+      summary ← encoder + GRU + posterior(image)
+      push    ← actor's best push + Normal(0, 0.3) noise
+      image, score ← simulator.step(push) for 2 ticks     <span class="c">[action repeat R = 2]</span>
+      write (image, push, score)
+  diary ← diary + this try</div>
+
+<!-- 9 -->
+<h2 id="settings"><span class="num">09</span>Settings from the paper</h2>
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Image size</td><td class="mono">64 × 64 × 3</td></tr>
+<tr><td>Random seed tries (S)</td><td class="mono">5</td></tr>
+<tr><td>Updates per round (C)</td><td class="mono">100</td></tr>
+<tr><td>Batch (B × L)</td><td class="mono">50 clips × 50 steps</td></tr>
+<tr><td>Dream length (H)</td><td class="mono">15 (Atari/DMLab: 10)</td></tr>
+<tr><td>Discount γ / λ</td><td class="mono">0.99 / 0.95</td></tr>
+<tr><td>Latent z</td><td class="mono">30-d diagonal Gaussian</td></tr>
+<tr><td>Other networks</td><td class="mono">3 dense layers × 300, ELU</td></tr>
+<tr><td>Learning rates</td><td class="mono">world 6e-4, actor 8e-5, critic 8e-5 (Adam)</td></tr>
+<tr><td>Gradient clipping</td><td class="mono">norm 100</td></tr>
+<tr><td>KL scale β / free nats</td><td class="mono">1 / 3 (Atari/DMLab β = 0.1)</td></tr>
+<tr><td>Action repeat (R)</td><td class="mono">2</td></tr>
+<tr><td>Exploration</td><td class="mono">Normal(0, 0.3); discrete: ε 0.4 → 0.1</td></tr>
+<tr><td>Compute</td><td class="mono">1 V100 GPU, ~3 h per 1M frames</td></tr>
+</tbody></table></div>
+<div class="callout warn">Not in the paper: the 200-unit GRU size, the 1,024-number image embedding, zero memory at each clip start, and storing tries as files on disk all come from PlaNet and the authors' reference code. The memory sizes above are estimates worked out from the stated shapes.</div>
+
+<!-- 10 -->
+<h2 id="words"><span class="num">10</span>Word list</h2>
+<div class="tw"><table>
+<thead><tr><th>Plain word used here</th><th>Paper term</th><th>Symbol</th></tr></thead>
+<tbody>
+<tr><td>World / game</td><td>Environment</td><td>env</td></tr>
+<tr><td>Try</td><td>Episode</td><td>T = 1000 frames</td></tr>
+<tr><td>Diary</td><td>Dataset / replay buffer</td><td>D</td></tr>
+<tr><td>Picture</td><td>Observation</td><td>o_t</td></tr>
+<tr><td>Push</td><td>Action</td><td>a_t</td></tr>
+<tr><td>Score</td><td>Reward</td><td>r_t</td></tr>
+<tr><td>Summary</td><td>Model state</td><td>s_t = (h_t, z_t)</td></tr>
+<tr><td>Eyes closed</td><td>Transition model (prior)</td><td>q(s_t | s_t-1, a_t-1)</td></tr>
+<tr><td>Eyes open</td><td>Representation model (posterior)</td><td>p(s_t | s_t-1, a_t-1, o_t)</td></tr>
+<tr><td>Redraw</td><td>Observation model</td><td>q(o_t | s_t)</td></tr>
+<tr><td>Dream</td><td>Imagined trajectory</td><td>{s_τ, a_τ, r_τ}</td></tr>
+<tr><td>Actor</td><td>Action model</td><td>q_φ(a | s)</td></tr>
+<tr><td>Critic</td><td>Value model</td><td>v_ψ(s)</td></tr>
+<tr><td>Blended score</td><td>λ-return</td><td>V_λ</td></tr>
+</tbody></table></div>
+
+<footer>Source: Hafner, Lillicrap, Ba, Norouzi, "Dream to Control: Learning Behaviors by Latent Imagination", ICLR 2020 (Algorithm 1, Sections 3–4, Appendix A).</footer>
+</main>
+</body>
+</html>
